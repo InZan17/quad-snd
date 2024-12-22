@@ -1,4 +1,4 @@
-use crate::PlaySoundParams;
+use crate::{error::Error, PlaySoundParams};
 
 use std::sync::mpsc;
 
@@ -431,10 +431,10 @@ pub struct Sound {
 }
 
 impl Sound {
-    pub fn load(ctx: &AudioContext, data: &[u8]) -> Sound {
-        let sound_id = ctx.mixer_ctrl.load(data);
+    pub fn load(ctx: &AudioContext, data: &[u8]) -> Result<Sound, Error> {
+        let sound_id = ctx.mixer_ctrl.load(data)?;
 
-        Sound { sound_id }
+        Ok(Sound { sound_id })
     }
 
     pub fn play(&self, ctx: &AudioContext, params: PlaySoundParams) -> Playback {

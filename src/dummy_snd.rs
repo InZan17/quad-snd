@@ -1,4 +1,4 @@
-use crate::PlaySoundParams;
+use crate::{error::Error, PlaySoundParams};
 
 pub struct AudioContext;
 
@@ -19,7 +19,7 @@ impl Playback {
 pub struct Sound;
 
 impl Sound {
-    pub fn load(_data: &[u8]) -> Sound {
+    pub fn load(_data: &[u8]) -> Result<Sound, Error> {
         Sound
     }
 

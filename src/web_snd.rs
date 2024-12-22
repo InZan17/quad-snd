@@ -1,4 +1,4 @@
-use crate::PlaySoundParams;
+use crate::{error::Error, PlaySoundParams};
 
 extern "C" {
     fn audio_init();
@@ -44,7 +44,7 @@ impl Playback {
 }
 
 impl Sound {
-    pub fn load(_ctx: &AudioContext, data: &[u8]) -> Sound {
+    pub fn load(_ctx: &AudioContext, data: &[u8]) -> Result<Sound, Error> {
         let buffer = unsafe { audio_add_buffer(data.as_ptr(), data.len() as u32) };
         Sound(buffer)
     }

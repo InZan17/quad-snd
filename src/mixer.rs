@@ -1,9 +1,12 @@
+use audrey::read::{FormatError, ReadError};
+
+use crate::Error;
 use crate::{AudioContext, PlaySoundParams};
 
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 
 enum AudioMessage {
     AddSound(u32, Vec<f32>),
@@ -74,17 +77,17 @@ impl Playback {
 }
 
 impl MixerControl {
-    pub fn load(&self, data: &[u8]) -> u32 {
+    pub fn load(&self, data: &[u8]) -> Result<u32, Error> {
         let sound_id = self.sound_id.get();
 
-        let samples = load_samples_from_file(data).unwrap();
+        let samples = load_samples_from_file(data)?;
 
         self.tx
             .send(crate::mixer::AudioMessage::AddSound(sound_id, samples))
             .unwrap_or_else(|_| println!("Audio thread died"));
         self.sound_id.set(sound_id + 1);
 
-        sound_id
+        Ok(sound_id)
     }
 
     pub fn play(&self, sound_id: u32, params: PlaySoundParams) -> Playback {
@@ -242,27 +245,37 @@ impl Mixer {
 }
 
 /// Parse ogg/wav/etc and get  resampled to 44100, 2 channel data
-pub fn load_samples_from_file(bytes: &[u8]) -> Result<Vec<f32>, ()> {
+pub fn load_samples_from_file(bytes: &[u8]) -> Result<Vec<f32>, Error> {
     let mut audio_stream = {
         let file = std::io::Cursor::new(bytes);
-        audrey::Reader::new(file).unwrap()
+        audrey::Reader::new(file)?
     };
 
     let description = audio_stream.description();
     let channels_count = description.channel_count();
-    assert!(channels_count == 1 || channels_count == 2);
 
-    let mut frames: Vec<f32> = Vec::with_capacity(4096);
-    let mut samples_iterator = audio_stream
+    if channels_count > 2 {
+        return Err(Error::ManyChannelsError);
+    }
+
+    if channels_count == 0 {
+        return Err(Error::NoChannelsError);
+    }
+
+    let frames: Vec<f32>;
+    let mut samples = audio_stream
         .samples::<f32>()
-        .map(std::result::Result::unwrap);
+        .collect::<Result<Vec<f32>, FormatError>>()?;
 
     // audrey's frame docs: "TODO: Should consider changing this behaviour to check the audio file's actual number of channels and automatically convert to F's number of channels while reading".
     // lets fix this TODO here
     if channels_count == 1 {
-        frames.extend(samples_iterator.flat_map(|sample| [sample, sample]));
-    } else if channels_count == 2 {
-        frames.extend(samples_iterator);
+        frames = samples
+            .into_iter()
+            .flat_map(|sample| [sample, sample])
+            .collect();
+    } else {
+        frames = samples;
     }
 
     let sample_rate = description.sample_rate();
